@@ -76,7 +76,7 @@ const Users = () => {
     setShowModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -102,7 +102,7 @@ const Users = () => {
           }
           updateData.password = formData.password;
         }
-        updateUser(editingUser.id, updateData);
+        await updateUser(editingUser.id, updateData);
       } else {
         // Create mode
         if (!formData.password) {
@@ -113,7 +113,7 @@ const Users = () => {
           setError('A senha deve ter no mínimo 6 caracteres.');
           return;
         }
-        addUser({
+        await addUser({
           displayName: formData.displayName,
           email: formData.email,
           password: formData.password,
@@ -127,10 +127,10 @@ const Users = () => {
     }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('Tem certeza que deseja excluir este usuário?')) {
       try {
-        deleteUser(id);
+        await deleteUser(id);
       } catch (err) {
         alert(err.message || 'Erro ao excluir usuário.');
       }

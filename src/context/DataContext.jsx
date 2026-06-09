@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { db } from '../firebase';
+import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const DataContext = createContext({});
 export const useData = () => useContext(DataContext);
@@ -41,111 +43,192 @@ const initialTables = Array.from({ length: 12 }, (_, i) => ({
   updatedAt: new Date().toISOString()
 }));
 
-function loadFromStorage(key, fallback) {
-  try {
-    const data = localStorage.getItem(`@BardoMike:${key}`);
-    return data ? JSON.parse(data) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveToStorage(key, data) {
-  localStorage.setItem(`@BardoMike:${key}`, JSON.stringify(data));
-}
-
 export const DataProvider = ({ children }) => {
-  const [categories, setCategories] = useState(() => loadFromStorage('categories', initialCategories));
-  const [products, setProducts] = useState(() => loadFromStorage('products', initialProducts));
-  const [clients, setClients] = useState(() => loadFromStorage('clients', initialClients));
-  const [tables, setTables] = useState(() => loadFromStorage('tables', initialTables));
-  const [sales, setSales] = useState(() => loadFromStorage('sales', []));
-  const [comandas, setComandas] = useState(() => loadFromStorage('comandas', []));
-  const [financeiro, setFinanceiro] = useState(() => loadFromStorage('financeiro', []));
-  const [stockMovements, setStockMovements] = useState(() => loadFromStorage('stockMovements', []));
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [comandas, setComandas] = useState([]);
+  const [financeiro, setFinanceiro] = useState([]);
+  const [stockMovements, setStockMovements] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Persistir alterações no localStorage
-  useEffect(() => { saveToStorage('categories', categories); }, [categories]);
-  useEffect(() => { saveToStorage('products', products); }, [products]);
-  useEffect(() => { saveToStorage('clients', clients); }, [clients]);
-  useEffect(() => { saveToStorage('tables', tables); }, [tables]);
-  useEffect(() => { saveToStorage('sales', sales); }, [sales]);
-  useEffect(() => { saveToStorage('comandas', comandas); }, [comandas]);
-  useEffect(() => { saveToStorage('financeiro', financeiro); }, [financeiro]);
-  useEffect(() => { saveToStorage('stockMovements', stockMovements); }, [stockMovements]);
+  // Carregar todos os dados do Firestore no mount
+  useEffect(() => {
+    const loadAllData = async () => {
+      try {
+        const getCollectionData = async (colName) => {
+          const snapshot = await getDocs(collection(db, colName));
+          const list = [];
+          snapshot.forEach(doc => {
+            list.push(doc.data());
+          });
+          return list;
+        };
+
+        // Carrega categorias
+        let cats = await getCollectionData('categories');
+        if (cats.length === 0) {
+          for (const cat of initialCategories) {
+            await setDoc(doc(db, 'categories', cat.id), cat);
+          }
+          cats = initialCategories;
+        }
+        setCategories(cats);
+
+        // Carrega produtos
+        let prods = await getCollectionData('products');
+        if (prods.length === 0) {
+          for (const prod of initialProducts) {
+            await setDoc(doc(db, 'products', prod.id), prod);
+          }
+          prods = initialProducts;
+        }
+        setProducts(prods);
+
+        // Carrega clientes
+        let clis = await getCollectionData('clients');
+        if (clis.length === 0) {
+          for (const cli of initialClients) {
+            await setDoc(doc(db, 'clients', cli.id), cli);
+          }
+          clis = initialClients;
+        }
+        setClients(clis);
+
+        // Carrega mesas
+        let tbls = await getCollectionData('tables');
+        if (tbls.length === 0) {
+          for (const tbl of initialTables) {
+            await setDoc(doc(db, 'tables', tbl.id), tbl);
+          }
+          tbls = initialTables;
+        }
+        setTables(tbls);
+
+        // Carrega vendas
+        const sls = await getCollectionData('sales');
+        setSales(sls);
+
+        // Carrega comandas
+        const cmds = await getCollectionData('comandas');
+        setComandas(cmds);
+
+        // Carrega financeiro
+        const fin = await getCollectionData('financeiro');
+        setFinanceiro(fin);
+
+        // Carrega movimentações de estoque
+        const movs = await getCollectionData('stockMovements');
+        setStockMovements(movs);
+
+      } catch (error) {
+        console.error("Erro ao carregar dados do Firestore:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAllData();
+  }, []);
 
   // ===== CATEGORIAS =====
-  const addCategory = useCallback((cat) => {
+  const addCategory = useCallback(async (cat) => {
     const newCat = { ...cat, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    await setDoc(doc(db, 'categories', newCat.id), newCat);
     setCategories(prev => [...prev, newCat]);
     return newCat;
   }, []);
 
-  const updateCategory = useCallback((id, data) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c));
+  const updateCategory = useCallback(async (id, data) => {
+    const updateData = { ...data, updatedAt: new Date().toISOString() };
+    await updateDoc(doc(db, 'categories', id), updateData);
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
   }, []);
 
-  const deleteCategory = useCallback((id) => {
+  const deleteCategory = useCallback(async (id) => {
+    await deleteDoc(doc(db, 'categories', id));
     setCategories(prev => prev.filter(c => c.id !== id));
   }, []);
 
   // ===== PRODUTOS =====
-  const addProduct = useCallback((prod) => {
+  const addProduct = useCallback(async (prod) => {
     const newProd = { ...prod, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    await setDoc(doc(db, 'products', newProd.id), newProd);
     setProducts(prev => [...prev, newProd]);
     return newProd;
   }, []);
 
-  const updateProduct = useCallback((id, data) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p));
+  const updateProduct = useCallback(async (id, data) => {
+    const updateData = { ...data, updatedAt: new Date().toISOString() };
+    await updateDoc(doc(db, 'products', id), updateData);
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p));
   }, []);
 
-  const deleteProduct = useCallback((id) => {
+  const deleteProduct = useCallback(async (id) => {
+    await deleteDoc(doc(db, 'products', id));
     setProducts(prev => prev.filter(p => p.id !== id));
   }, []);
 
   // ===== CLIENTES =====
-  const addClient = useCallback((client) => {
+  const addClient = useCallback(async (client) => {
     const newClient = { ...client, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    await setDoc(doc(db, 'clients', newClient.id), newClient);
     setClients(prev => [...prev, newClient]);
     return newClient;
   }, []);
 
-  const updateClient = useCallback((id, data) => {
-    setClients(prev => prev.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c));
+  const updateClient = useCallback(async (id, data) => {
+    const updateData = { ...data, updatedAt: new Date().toISOString() };
+    await updateDoc(doc(db, 'clients', id), updateData);
+    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
   }, []);
 
-  const deleteClient = useCallback((id) => {
+  const deleteClient = useCallback(async (id) => {
+    await deleteDoc(doc(db, 'clients', id));
     setClients(prev => prev.filter(c => c.id !== id));
   }, []);
 
   // ===== MESAS =====
-  const updateTable = useCallback((id, data) => {
-    setTables(prev => prev.map(t => t.id === id ? { ...t, ...data, updatedAt: new Date().toISOString() } : t));
+  const updateTable = useCallback(async (id, data) => {
+    const updateData = { ...data, updatedAt: new Date().toISOString() };
+    await updateDoc(doc(db, 'tables', id), updateData);
+    setTables(prev => prev.map(t => t.id === id ? { ...t, ...updateData } : t));
   }, []);
 
-  const addTable = useCallback((table) => {
+  const addTable = useCallback(async (table) => {
     const newTable = { ...table, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    await setDoc(doc(db, 'tables', newTable.id), newTable);
     setTables(prev => [...prev, newTable]);
     return newTable;
   }, []);
 
-  const deleteTable = useCallback((id) => {
+  const deleteTable = useCallback(async (id) => {
+    await deleteDoc(doc(db, 'tables', id));
     setTables(prev => prev.filter(t => t.id !== id));
   }, []);
 
   // ===== VENDAS =====
-  const addSale = useCallback((sale) => {
+  const addSale = useCallback(async (sale) => {
     const newSale = { ...sale, id: generateId(), createdAt: new Date().toISOString() };
-    setSales(prev => [...prev, newSale]);
+    
+    // Registrar venda
+    await setDoc(doc(db, 'sales', newSale.id), newSale);
+    
     // Atualizar estoque
-    sale.items.forEach(item => {
-      setProducts(prev => prev.map(p =>
-        p.id === item.productId ? { ...p, estoque: Math.max(0, p.estoque - item.quantidade) } : p
-      ));
+    const updatedProducts = products.map(p => {
+      const saleItem = sale.items.find(item => item.productId === p.id);
+      if (saleItem) {
+        const newStock = Math.max(0, p.estoque - saleItem.quantidade);
+        updateDoc(doc(db, 'products', p.id), { estoque: newStock, updatedAt: new Date().toISOString() });
+        return { ...p, estoque: newStock, updatedAt: new Date().toISOString() };
+      }
+      return p;
     });
+
     // Registrar no financeiro
-    setFinanceiro(prev => [...prev, {
+    const financeEntry = {
       id: generateId(),
       tipo: 'receita',
       categoria: 'Vendas',
@@ -153,48 +236,73 @@ export const DataProvider = ({ children }) => {
       valor: sale.total,
       data: new Date().toISOString(),
       createdAt: new Date().toISOString()
-    }]);
+    };
+    await setDoc(doc(db, 'financeiro', financeEntry.id), financeEntry);
+
+    setProducts(updatedProducts);
+    setSales(prev => [...prev, newSale]);
+    setFinanceiro(prev => [...prev, financeEntry]);
+    
     return newSale;
-  }, []);
+  }, [products]);
 
   // ===== COMANDAS =====
-  const addComanda = useCallback((comanda) => {
-    const newComanda = { ...comanda, id: generateId(), numero: comandas.length + 1, status: 'Aberta', items: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  const addComanda = useCallback(async (comanda) => {
+    const newComanda = { 
+      ...comanda, 
+      id: generateId(), 
+      numero: comandas.length + 1, 
+      status: 'Aberta', 
+      items: [], 
+      createdAt: new Date().toISOString(), 
+      updatedAt: new Date().toISOString() 
+    };
+    await setDoc(doc(db, 'comandas', newComanda.id), newComanda);
     setComandas(prev => [...prev, newComanda]);
     return newComanda;
   }, [comandas.length]);
 
-  const updateComanda = useCallback((id, data) => {
-    setComandas(prev => prev.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c));
+  const updateComanda = useCallback(async (id, data) => {
+    const updateData = { ...data, updatedAt: new Date().toISOString() };
+    await updateDoc(doc(db, 'comandas', id), updateData);
+    setComandas(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
   }, []);
 
   // ===== FINANCEIRO =====
-  const addFinanceiro = useCallback((entry) => {
+  const addFinanceiro = useCallback(async (entry) => {
     const newEntry = { ...entry, id: generateId(), createdAt: new Date().toISOString() };
+    await setDoc(doc(db, 'financeiro', newEntry.id), newEntry);
     setFinanceiro(prev => [...prev, newEntry]);
     return newEntry;
   }, []);
 
-  const deleteFinanceiro = useCallback((id) => {
+  const deleteFinanceiro = useCallback(async (id) => {
+    await deleteDoc(doc(db, 'financeiro', id));
     setFinanceiro(prev => prev.filter(f => f.id !== id));
   }, []);
 
   // ===== MOVIMENTAÇÕES DE ESTOQUE =====
-  const addStockMovement = useCallback((movement) => {
+  const addStockMovement = useCallback(async (movement) => {
     const newMov = { ...movement, id: generateId(), createdAt: new Date().toISOString() };
-    setStockMovements(prev => [...prev, newMov]);
+    await setDoc(doc(db, 'stockMovements', newMov.id), newMov);
+
     // Atualizar estoque do produto
-    setProducts(prev => prev.map(p => {
+    const updatedProducts = products.map(p => {
       if (p.id === movement.productId) {
         const newStock = movement.tipo === 'entrada'
           ? p.estoque + movement.quantidade
           : Math.max(0, p.estoque - movement.quantidade);
+        
+        updateDoc(doc(db, 'products', p.id), { estoque: newStock, updatedAt: new Date().toISOString() });
         return { ...p, estoque: newStock, updatedAt: new Date().toISOString() };
       }
       return p;
-    }));
+    });
+
+    setProducts(updatedProducts);
+    setStockMovements(prev => [...prev, newMov]);
     return newMov;
-  }, []);
+  }, [products]);
 
   const value = {
     categories, addCategory, updateCategory, deleteCategory,
@@ -206,6 +314,20 @@ export const DataProvider = ({ children }) => {
     financeiro, addFinanceiro, deleteFinanceiro,
     stockMovements, addStockMovement,
   };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: 'var(--bg-color)' }}>
+        <div className="spinner" style={{ border: '4px solid rgba(0,0,0,0.1)', width: '36px', height: '36px', borderRadius: '50%', borderLeftColor: 'var(--primary-color)', animation: 'spin 1s linear infinite' }}></div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 };

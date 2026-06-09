@@ -1,4 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import { db } from '../firebase';
+import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const AuthContext = createContext({});
 
@@ -22,29 +24,38 @@ export const AuthProvider = ({ children }) => {
 
   // Carrega usuários e sessão atual
   useEffect(() => {
-    const storedUsers = localStorage.getItem('@BardoMike:users');
-    let loadedUsers = [];
-    if (storedUsers) {
+    const loadUsersAndSession = async () => {
       try {
-        loadedUsers = JSON.parse(storedUsers);
-      } catch (e) {
-        loadedUsers = [INITIAL_ADMIN];
-      }
-    } else {
-      loadedUsers = [INITIAL_ADMIN];
-      localStorage.setItem('@BardoMike:users', JSON.stringify(loadedUsers));
-    }
-    setUsers(loadedUsers);
+        const querySnapshot = await getDocs(collection(db, 'users'));
+        let loadedUsers = [];
+        querySnapshot.forEach((doc) => {
+          loadedUsers.push(doc.data());
+        });
 
-    const storedUser = localStorage.getItem('@BardoMike:user');
-    if (storedUser) {
-      try {
-        setCurrentUser(JSON.parse(storedUser));
-      } catch (e) {
-        setCurrentUser(null);
+        if (loadedUsers.length === 0) {
+          // Crie o usuário admin padrão se não houver usuários
+          await setDoc(doc(db, 'users', INITIAL_ADMIN.id), INITIAL_ADMIN);
+          loadedUsers = [INITIAL_ADMIN];
+        }
+        setUsers(loadedUsers);
+      } catch (error) {
+        console.error("Erro ao carregar usuários do Firestore:", error);
+        // Fallback para admin padrão em caso de erro
+        setUsers([INITIAL_ADMIN]);
       }
-    }
-    setLoading(false);
+
+      const storedUser = localStorage.getItem('@BardoMike:user');
+      if (storedUser) {
+        try {
+          setCurrentUser(JSON.parse(storedUser));
+        } catch (e) {
+          setCurrentUser(null);
+        }
+      }
+      setLoading(false);
+    };
+
+    loadUsersAndSession();
   }, []);
 
   // Simulação de login
@@ -80,27 +91,27 @@ export const AuthProvider = ({ children }) => {
   };
 
   // CRUD de Usuários
-  const addUser = (userData) => {
+  const addUser = async (userData) => {
     const emailExists = users.some(u => u.email.toLowerCase() === userData.email.toLowerCase());
     if (emailExists) {
       throw new Error('Já existe um usuário cadastrado com este e-mail.');
     }
 
+    const newUserId = Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
     const newUser = {
       ...userData,
-      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 9),
+      id: newUserId,
       ativo: userData.ativo !== undefined ? userData.ativo : true,
       needsPasswordChange: userData.needsPasswordChange !== undefined ? userData.needsPasswordChange : false,
       createdAt: new Date().toISOString()
     };
     
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    localStorage.setItem('@BardoMike:users', JSON.stringify(updatedUsers));
+    await setDoc(doc(db, 'users', newUserId), newUser);
+    setUsers(prev => [...prev, newUser]);
     return newUser;
   };
 
-  const updateUser = (id, data) => {
+  const updateUser = async (id, data) => {
     if (data.email) {
       const emailExists = users.some(u => u.id !== id && u.email.toLowerCase() === data.email.toLowerCase());
       if (emailExists) {
@@ -130,26 +141,25 @@ export const AuthProvider = ({ children }) => {
       return u;
     });
     
+    await updateDoc(doc(db, 'users', id), data);
     setUsers(updatedUsers);
-    localStorage.setItem('@BardoMike:users', JSON.stringify(updatedUsers));
   };
 
-  const deleteUser = (id) => {
+  const deleteUser = async (id) => {
     const currentUid = currentUser?.id || currentUser?.uid;
     // Não permite excluir o próprio usuário logado
     if (currentUid === id) {
       throw new Error('Não é possível excluir o usuário que está logado atualmente.');
     }
     
-    const updatedUsers = users.filter(u => u.id !== id);
-    setUsers(updatedUsers);
-    localStorage.setItem('@BardoMike:users', JSON.stringify(updatedUsers));
+    await deleteDoc(doc(db, 'users', id));
+    setUsers(prev => prev.filter(u => u.id !== id));
   };
 
-  const updateCurrentUser = (updatedData) => {
+  const updateCurrentUser = async (updatedData) => {
     const currentUid = currentUser?.id || currentUser?.uid;
     if (!currentUid) return;
-    updateUser(currentUid, updatedData);
+    await updateUser(currentUid, updatedData);
   };
 
   const value = {
