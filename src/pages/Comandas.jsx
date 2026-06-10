@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { Plus, X, Search, FileText, ShoppingCart, DollarSign, Check, Trash2, User, Coffee } from 'lucide-react';
+import { Plus, Minus, X, Search, FileText, ShoppingCart, DollarSign, Check, Trash2, User, Coffee } from 'lucide-react';
 import '../styles/Pages.css';
 
 const Comandas = () => {
@@ -71,7 +71,7 @@ const Comandas = () => {
   }, [tables]);
 
   // Abre Nova Comanda
-  const handleCreateComanda = (e) => {
+  const handleCreateComanda = async (e) => {
     e.preventDefault();
     let clienteNome = newComandaForm.cliente.trim();
     let linkedMesaId = null;
@@ -95,7 +95,7 @@ const Comandas = () => {
     }
 
     // Criar comanda
-    const newCom = addComanda({
+    const newCom = await addComanda({
       cliente: clienteNome,
       mesaId: linkedMesaId,
       mesaNumero: linkedMesaNumero,
