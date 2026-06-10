@@ -111,7 +111,7 @@ const Pdv = () => {
     return diff > 0 ? diff : 0;
   }, [paymentMethod, amountPaid, cartTotal]);
 
-  const handleCheckout = (e) => {
+  const handleCheckout = async (e) => {
     e.preventDefault();
     if (cart.length === 0) {
       alert('Adicione itens ao carrinho antes de finalizar a venda!');
@@ -143,17 +143,21 @@ const Pdv = () => {
       valorPago: paymentMethod === 'Dinheiro' && amountPaid ? parseFloat(amountPaid) : cartTotal
     };
 
-    const newSale = addSale(saleData);
-    setLastSaleDetails({
-      id: newSale.id,
-      total: cartTotal,
-      troco: saleData.troco,
-      formaPagamento: paymentMethod
-    });
-    
-    // Limpar o carrinho e abrir modal de sucesso
-    clearCart();
-    setShowSuccessModal(true);
+    try {
+      const newSale = await addSale(saleData);
+      setLastSaleDetails({
+        id: newSale.id,
+        total: cartTotal,
+        troco: saleData.troco,
+        formaPagamento: paymentMethod
+      });
+      // Limpar o carrinho e abrir modal de sucesso
+      clearCart();
+      setShowSuccessModal(true);
+    } catch (err) {
+      console.error('Erro ao finalizar venda:', err);
+      alert('Erro ao registrar a venda. Tente novamente.');
+    }
   };
 
   const formatCurrency = (v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`;

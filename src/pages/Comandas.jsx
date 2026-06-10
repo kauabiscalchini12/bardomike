@@ -208,8 +208,7 @@ const Comandas = () => {
     return diff > 0 ? diff : 0;
   }, [paymentMethod, amountPaid, comandaTotal]);
 
-  // Fechamento de Comanda (Checkout)
-  const handleCloseComanda = (e) => {
+  const handleCloseComanda = async (e) => {
     e.preventDefault();
     if (!selectedComanda) return;
     if (selectedComanda.items.length === 0) {
@@ -239,38 +238,43 @@ const Comandas = () => {
       valorPago: paymentMethod === 'Dinheiro' && amountPaid ? parseFloat(amountPaid) : comandaTotal
     };
 
-    const newSale = addSale(saleData);
+    try {
+      const newSale = await addSale(saleData);
 
-    // Atualizar comanda para Fechada
-    updateComanda(selectedComanda.id, {
-      status: 'Fechada',
-      total: comandaTotal,
-      formaPagamento: paymentMethod,
-      closedAt: new Date().toISOString()
-    });
-
-    // Se ligada à mesa, liberar mesa
-    if (selectedComanda.mesaId) {
-      updateTable(selectedComanda.mesaId, {
-        status: 'Livre',
-        cliente: '',
-        comanda_id: null
+      // Atualizar comanda para Fechada
+      await updateComanda(selectedComanda.id, {
+        status: 'Fechada',
+        total: comandaTotal,
+        formaPagamento: paymentMethod,
+        closedAt: new Date().toISOString()
       });
+
+      // Se ligada à mesa, liberar mesa
+      if (selectedComanda.mesaId) {
+        updateTable(selectedComanda.mesaId, {
+          status: 'Livre',
+          cliente: '',
+          comanda_id: null
+        });
+      }
+
+      setLastSaleDetails({
+        id: newSale.id,
+        cliente: selectedComanda.cliente,
+        total: comandaTotal,
+        troco: saleData.troco,
+        formaPagamento: paymentMethod
+      });
+
+      setShowCloseModal(false);
+      setSelectedComanda(null);
+      setAmountPaid('');
+      setPaymentMethod('Dinheiro');
+      setShowSuccessModal(true);
+    } catch (err) {
+      console.error('Erro ao fechar comanda:', err);
+      alert('Erro ao fechar a comanda. Tente novamente.');
     }
-
-    setLastSaleDetails({
-      id: newSale.id,
-      cliente: selectedComanda.cliente,
-      total: comandaTotal,
-      troco: saleData.troco,
-      formaPagamento: paymentMethod
-    });
-
-    setShowCloseModal(false);
-    setSelectedComanda(null);
-    setAmountPaid('');
-    setPaymentMethod('Dinheiro');
-    setShowSuccessModal(true);
   };
 
   const formatCurrency = (v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`;

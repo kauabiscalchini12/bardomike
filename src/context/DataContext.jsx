@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
@@ -53,6 +53,7 @@ export const DataProvider = ({ children }) => {
   const [financeiro, setFinanceiro] = useState([]);
   const [stockMovements, setStockMovements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const productsRef = useRef([]);
 
   // Carregar todos os dados do Firestore no mount
   useEffect(() => {
@@ -86,6 +87,7 @@ export const DataProvider = ({ children }) => {
           prods = initialProducts;
         }
         setProducts(prods);
+        productsRef.current = prods;
 
         // Carrega clientes
         let clis = await getCollectionData('clients');
@@ -156,19 +158,31 @@ export const DataProvider = ({ children }) => {
   const addProduct = useCallback(async (prod) => {
     const newProd = { ...prod, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     await setDoc(doc(db, 'products', newProd.id), newProd);
-    setProducts(prev => [...prev, newProd]);
+    setProducts(prev => {
+      const next = [...prev, newProd];
+      productsRef.current = next;
+      return next;
+    });
     return newProd;
   }, []);
 
   const updateProduct = useCallback(async (id, data) => {
     const updateData = { ...data, updatedAt: new Date().toISOString() };
     await updateDoc(doc(db, 'products', id), updateData);
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p));
+    setProducts(prev => {
+      const next = prev.map(p => p.id === id ? { ...p, ...updateData } : p);
+      productsRef.current = next;
+      return next;
+    });
   }, []);
 
   const deleteProduct = useCallback(async (id) => {
     await deleteDoc(doc(db, 'products', id));
-    setProducts(prev => prev.filter(p => p.id !== id));
+    setProducts(prev => {
+      const next = prev.filter(p => p.id !== id);
+      productsRef.current = next;
+      return next;
+    });
   }, []);
 
   // ===== CLIENTES =====
@@ -209,15 +223,15 @@ export const DataProvider = ({ children }) => {
     setTables(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  // ===== VENDAS =====
   const addSale = useCallback(async (sale) => {
     const newSale = { ...sale, id: generateId(), createdAt: new Date().toISOString() };
     
     // Registrar venda
     await setDoc(doc(db, 'sales', newSale.id), newSale);
     
-    // Atualizar estoque
-    const updatedProducts = products.map(p => {
+    // Atualizar estoque usando ref (dados sempre atuais)
+    const currentProducts = productsRef.current;
+    const updatedProducts = currentProducts.map(p => {
       const saleItem = sale.items.find(item => item.productId === p.id);
       if (saleItem) {
         const newStock = Math.max(0, p.estoque - saleItem.quantidade);
@@ -239,12 +253,13 @@ export const DataProvider = ({ children }) => {
     };
     await setDoc(doc(db, 'financeiro', financeEntry.id), financeEntry);
 
+    productsRef.current = updatedProducts;
     setProducts(updatedProducts);
     setSales(prev => [...prev, newSale]);
     setFinanceiro(prev => [...prev, financeEntry]);
     
     return newSale;
-  }, [products]);
+  }, []);
 
   // ===== COMANDAS =====
   const addComanda = useCallback(async (comanda) => {
@@ -286,8 +301,9 @@ export const DataProvider = ({ children }) => {
     const newMov = { ...movement, id: generateId(), createdAt: new Date().toISOString() };
     await setDoc(doc(db, 'stockMovements', newMov.id), newMov);
 
-    // Atualizar estoque do produto
-    const updatedProducts = products.map(p => {
+    // Atualizar estoque do produto usando ref (dados sempre atuais)
+    const currentProducts = productsRef.current;
+    const updatedProducts = currentProducts.map(p => {
       if (p.id === movement.productId) {
         const newStock = movement.tipo === 'entrada'
           ? p.estoque + movement.quantidade
@@ -299,10 +315,11 @@ export const DataProvider = ({ children }) => {
       return p;
     });
 
+    productsRef.current = updatedProducts;
     setProducts(updatedProducts);
     setStockMovements(prev => [...prev, newMov]);
     return newMov;
-  }, [products]);
+  }, []);
 
   const value = {
     categories, addCategory, updateCategory, deleteCategory,
