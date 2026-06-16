@@ -29,78 +29,90 @@ const Tables = () => {
     setShowModal(true);
   };
 
-  const changeStatus = (status) => {
-    if (status === 'Ocupada') {
-      const finalClientName = clientName.trim() || `Mesa ${selectedTable.numero}`;
-      // Criar comanda
-      const newCom = addComanda({
-        cliente: finalClientName,
-        mesaId: selectedTable.id,
-        mesaNumero: selectedTable.numero,
-        items: []
-      });
-      updateTable(selectedTable.id, { 
-        status, 
-        cliente: finalClientName, 
-        comanda_id: newCom.id 
-      });
-      setSelectedTable({ 
-        ...selectedTable, 
-        status, 
-        cliente: finalClientName, 
-        comanda_id: newCom.id 
-      });
-    } else if (status === 'Livre') {
-      // Liberar comanda associada
-      if (selectedTable.comanda_id) {
-        const assocCom = comandas.find(c => c.id === selectedTable.comanda_id);
-        if (assocCom) {
-          updateComanda(assocCom.id, { status: 'Fechada', updatedAt: new Date().toISOString() });
+  const changeStatus = async (status) => {
+    try {
+      if (status === 'Ocupada') {
+        const finalClientName = clientName.trim() || `Mesa ${selectedTable.numero}`;
+        // Criar comanda e aguardar retorno para obter o id
+        const newCom = await addComanda({
+          cliente: finalClientName,
+          mesaId: selectedTable.id,
+          mesaNumero: selectedTable.numero,
+          items: []
+        });
+        await updateTable(selectedTable.id, { 
+          status, 
+          cliente: finalClientName, 
+          comanda_id: newCom.id 
+        });
+        setSelectedTable({ 
+          ...selectedTable, 
+          status, 
+          cliente: finalClientName, 
+          comanda_id: newCom.id 
+        });
+      } else if (status === 'Livre') {
+        // Liberar comanda associada
+        if (selectedTable.comanda_id) {
+          const assocCom = comandas.find(c => c.id === selectedTable.comanda_id);
+          if (assocCom) {
+            await updateComanda(assocCom.id, { status: 'Fechada', updatedAt: new Date().toISOString() });
+          }
         }
+        await updateTable(selectedTable.id, { status: 'Livre', cliente: '', comanda_id: null });
+        setSelectedTable({ ...selectedTable, status: 'Livre', cliente: '', comanda_id: null });
+      } else {
+        await updateTable(selectedTable.id, { status, cliente: selectedTable.cliente });
+        setSelectedTable({ ...selectedTable, status });
       }
-      updateTable(selectedTable.id, { status: 'Livre', cliente: '', comanda_id: null });
-      setSelectedTable({ ...selectedTable, status: 'Livre', cliente: '', comanda_id: null });
-    } else {
-      updateTable(selectedTable.id, { status, cliente: selectedTable.cliente });
-      setSelectedTable({ ...selectedTable, status });
+    } catch (error) {
+      console.error("Erro ao alterar status da mesa:", error);
     }
     setClientName('');
     setShowModal(false);
   };
 
-  const handleAddTable = (e) => {
+  const handleAddTable = async (e) => {
     e.preventDefault();
-    addTable({
-      numero: parseInt(newTableForm.numero),
-      capacidade: parseInt(newTableForm.capacidade),
-      status: 'Livre',
-      comanda_id: null,
-      cliente: '',
-    });
+    try {
+      await addTable({
+        numero: parseInt(newTableForm.numero),
+        capacidade: parseInt(newTableForm.capacidade),
+        status: 'Livre',
+        comanda_id: null,
+        cliente: '',
+      });
+    } catch (error) {
+      console.error("Erro ao adicionar mesa:", error);
+    }
     setNewTableForm({ numero: '', capacidade: 4 });
     setShowAddModal(false);
   };
 
-  const handleTransfer = () => {
+  const handleTransfer = async () => {
     if (!transferTo) return;
     const targetTable = tables.find(t => t.numero === parseInt(transferTo));
     if (!targetTable || targetTable.status !== 'Livre') return;
     
-    // Transferir: mesa destino fica ocupada com a comanda da mesa origem, mesa origem fica livre
-    updateTable(targetTable.id, { 
-      status: 'Ocupada', 
-      cliente: selectedTable.cliente,
-      comanda_id: selectedTable.comanda_id 
-    });
-    
-    if (selectedTable.comanda_id) {
-      updateComanda(selectedTable.comanda_id, {
-        mesaId: targetTable.id,
-        mesaNumero: targetTable.numero
+    try {
+      // Transferir: mesa destino fica ocupada com a comanda da mesa origem, mesa origem fica livre
+      await updateTable(targetTable.id, { 
+        status: 'Ocupada', 
+        cliente: selectedTable.cliente,
+        comanda_id: selectedTable.comanda_id 
       });
-    }
+      
+      if (selectedTable.comanda_id) {
+        await updateComanda(selectedTable.comanda_id, {
+          mesaId: targetTable.id,
+          mesaNumero: targetTable.numero
+        });
+      }
 
-    updateTable(selectedTable.id, { status: 'Livre', cliente: '', comanda_id: null });
+      await updateTable(selectedTable.id, { status: 'Livre', cliente: '', comanda_id: null });
+    } catch (error) {
+      console.error("Erro ao transferir mesa:", error);
+    }
     setShowTransferModal(false);
     setShowModal(false);
     setTransferTo('');

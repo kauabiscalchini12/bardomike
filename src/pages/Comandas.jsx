@@ -94,21 +94,25 @@ const Comandas = () => {
       }
     }
 
-    // Criar comanda
-    const newCom = await addComanda({
-      cliente: clienteNome,
-      mesaId: linkedMesaId,
-      mesaNumero: linkedMesaNumero,
-      items: []
-    });
-
-    // Se for mesa, atualizar mesa para ocupada e ligar comanda
-    if (linkedMesaId) {
-      updateTable(linkedMesaId, {
-        status: 'Ocupada',
+    try {
+      // Criar comanda
+      const newCom = await addComanda({
         cliente: clienteNome,
-        comanda_id: newCom.id
+        mesaId: linkedMesaId,
+        mesaNumero: linkedMesaNumero,
+        items: []
       });
+
+      // Se for mesa, atualizar mesa para ocupada e ligar comanda
+      if (linkedMesaId) {
+        await updateTable(linkedMesaId, {
+          status: 'Ocupada',
+          cliente: clienteNome,
+          comanda_id: newCom.id
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao criar comanda:", error);
     }
 
     // Limpar formulário e fechar modal
@@ -126,7 +130,7 @@ const Comandas = () => {
   };
 
   // Adiciona item na comanda atual
-  const handleAddItemToComanda = (e) => {
+  const handleAddItemToComanda = async (e) => {
     e.preventDefault();
     if (!selectedProduct || !selectedComanda) return;
 
@@ -166,13 +170,17 @@ const Comandas = () => {
       ];
     }
 
-    updateComanda(selectedComanda.id, { items: updatedItems });
-    
-    // Atualizar a referência da comanda selecionada na UI local
-    setSelectedComanda({
-      ...selectedComanda,
-      items: updatedItems
-    });
+    try {
+      await updateComanda(selectedComanda.id, { items: updatedItems });
+      
+      // Atualizar a referência da comanda selecionada na UI local
+      setSelectedComanda({
+        ...selectedComanda,
+        items: updatedItems
+      });
+    } catch (error) {
+      console.error("Erro ao adicionar item à comanda:", error);
+    }
 
     setShowAddItemModal(false);
     setSelectedProduct(null);
@@ -181,17 +189,21 @@ const Comandas = () => {
   };
 
   // Remover ou atualizar quantidade de item da comanda
-  const handleRemoveItemFromComanda = (productId, observacao = '') => {
+  const handleRemoveItemFromComanda = async (productId, observacao = '') => {
     if (!selectedComanda) return;
     const updatedItems = selectedComanda.items.filter(item => 
       !(item.productId === productId && (item.observacao || '') === observacao)
     );
     
-    updateComanda(selectedComanda.id, { items: updatedItems });
-    setSelectedComanda({
-      ...selectedComanda,
-      items: updatedItems
-    });
+    try {
+      await updateComanda(selectedComanda.id, { items: updatedItems });
+      setSelectedComanda({
+        ...selectedComanda,
+        items: updatedItems
+      });
+    } catch (error) {
+      console.error("Erro ao remover item da comanda:", error);
+    }
   };
 
   // Total da comanda selecionada
@@ -251,7 +263,7 @@ const Comandas = () => {
 
       // Se ligada à mesa, liberar mesa
       if (selectedComanda.mesaId) {
-        updateTable(selectedComanda.mesaId, {
+        await updateTable(selectedComanda.mesaId, {
           status: 'Livre',
           cliente: '',
           comanda_id: null
