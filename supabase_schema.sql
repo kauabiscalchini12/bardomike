@@ -75,7 +75,14 @@ CREATE TABLE IF NOT EXISTS tables (
 CREATE TABLE IF NOT EXISTS sales (
     id TEXT PRIMARY KEY,
     items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    subtotal NUMERIC(10, 2) DEFAULT 0.00,
+    desconto NUMERIC(10, 2) DEFAULT 0.00,
     total NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    "formaPagamento" TEXT,
+    "clienteId" TEXT,
+    "clienteNome" TEXT DEFAULT 'Consumidor Final',
+    troco NUMERIC(10, 2) DEFAULT 0.00,
+    "valorPago" NUMERIC(10, 2) DEFAULT 0.00,
     "createdAt" TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -84,7 +91,13 @@ CREATE TABLE IF NOT EXISTS comandas (
     id TEXT PRIMARY KEY,
     numero INTEGER,
     status TEXT DEFAULT 'Aberta',
+    cliente TEXT,
+    "mesaId" TEXT,
+    "mesaNumero" INTEGER,
     items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    total NUMERIC(10, 2) DEFAULT 0.00,
+    "formaPagamento" TEXT,
+    "closedAt" TIMESTAMPTZ,
     "createdAt" TIMESTAMPTZ DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ DEFAULT NOW()
 );
