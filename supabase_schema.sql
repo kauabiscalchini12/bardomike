@@ -110,3 +110,16 @@ CREATE TABLE IF NOT EXISTS "stockMovements" (
     data TIMESTAMPTZ DEFAULT NOW(),
     "createdAt" TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Desabilitar RLS (Row Level Security) para todas as tabelas
+-- Isso permite ler e gravar dados a partir do front-end usando a chave anon pública do Supabase.
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE categories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE clients DISABLE ROW LEVEL SECURITY;
+ALTER TABLE tables DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sales DISABLE ROW LEVEL SECURITY;
+ALTER TABLE comandas DISABLE ROW LEVEL SECURITY;
+ALTER TABLE financeiro DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "stockMovements" DISABLE ROW LEVEL SECURITY;
+
