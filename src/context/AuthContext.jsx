@@ -1,6 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { db } from '../firebase';
-import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { supabase } from '../supabase';
 
 const AuthContext = createContext({});
 
@@ -26,20 +25,20 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const loadUsersAndSession = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'users'));
-        let loadedUsers = [];
-        querySnapshot.forEach((doc) => {
-          loadedUsers.push(doc.data());
-        });
+        const { data, error } = await supabase.from('users').select('*');
+        if (error) throw error;
+
+        let loadedUsers = data || [];
 
         if (loadedUsers.length === 0) {
           // Crie o usuário admin padrão se não houver usuários
-          await setDoc(doc(db, 'users', INITIAL_ADMIN.id), INITIAL_ADMIN);
+          const { error: insertError } = await supabase.from('users').insert([INITIAL_ADMIN]);
+          if (insertError) throw insertError;
           loadedUsers = [INITIAL_ADMIN];
         }
         setUsers(loadedUsers);
       } catch (error) {
-        console.error("Erro ao carregar usuários do Firestore:", error);
+        console.error("Erro ao carregar usuários do Supabase:", error);
         // Fallback para admin padrão em caso de erro
         setUsers([INITIAL_ADMIN]);
       }
@@ -106,7 +105,8 @@ export const AuthProvider = ({ children }) => {
       createdAt: new Date().toISOString()
     };
     
-    await setDoc(doc(db, 'users', newUserId), newUser);
+    const { error } = await supabase.from('users').insert([newUser]);
+    if (error) throw error;
     setUsers(prev => [...prev, newUser]);
     return newUser;
   };
@@ -141,7 +141,8 @@ export const AuthProvider = ({ children }) => {
       return u;
     });
     
-    await updateDoc(doc(db, 'users', id), data);
+    const { error } = await supabase.from('users').update(data).eq('id', id);
+    if (error) throw error;
     setUsers(updatedUsers);
   };
 
@@ -152,7 +153,8 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Não é possível excluir o usuário que está logado atualmente.');
     }
     
-    await deleteDoc(doc(db, 'users', id));
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    if (error) throw error;
     setUsers(prev => prev.filter(u => u.id !== id));
   };
 

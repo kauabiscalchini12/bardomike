@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { db } from '../firebase';
-import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { supabase } from '../supabase';
 
 const DataContext = createContext({});
 export const useData = () => useContext(DataContext);
@@ -55,25 +54,21 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const productsRef = useRef([]);
 
-  // Carregar todos os dados do Firestore no mount
+  // Carregar todos os dados do Supabase no mount
   useEffect(() => {
     const loadAllData = async () => {
       try {
         const getCollectionData = async (colName) => {
-          const snapshot = await getDocs(collection(db, colName));
-          const list = [];
-          snapshot.forEach(doc => {
-            list.push(doc.data());
-          });
-          return list;
+          const { data, error } = await supabase.from(colName).select('*');
+          if (error) throw error;
+          return data || [];
         };
 
         // Carrega categorias
         let cats = await getCollectionData('categories');
         if (cats.length === 0) {
-          for (const cat of initialCategories) {
-            await setDoc(doc(db, 'categories', cat.id), cat);
-          }
+          const { error: insertError } = await supabase.from('categories').insert(initialCategories);
+          if (insertError) throw insertError;
           cats = initialCategories;
         }
         setCategories(cats);
@@ -81,9 +76,8 @@ export const DataProvider = ({ children }) => {
         // Carrega produtos
         let prods = await getCollectionData('products');
         if (prods.length === 0) {
-          for (const prod of initialProducts) {
-            await setDoc(doc(db, 'products', prod.id), prod);
-          }
+          const { error: insertError } = await supabase.from('products').insert(initialProducts);
+          if (insertError) throw insertError;
           prods = initialProducts;
         }
         setProducts(prods);
@@ -92,9 +86,8 @@ export const DataProvider = ({ children }) => {
         // Carrega clientes
         let clis = await getCollectionData('clients');
         if (clis.length === 0) {
-          for (const cli of initialClients) {
-            await setDoc(doc(db, 'clients', cli.id), cli);
-          }
+          const { error: insertError } = await supabase.from('clients').insert(initialClients);
+          if (insertError) throw insertError;
           clis = initialClients;
         }
         setClients(clis);
@@ -102,9 +95,8 @@ export const DataProvider = ({ children }) => {
         // Carrega mesas
         let tbls = await getCollectionData('tables');
         if (tbls.length === 0) {
-          for (const tbl of initialTables) {
-            await setDoc(doc(db, 'tables', tbl.id), tbl);
-          }
+          const { error: insertError } = await supabase.from('tables').insert(initialTables);
+          if (insertError) throw insertError;
           tbls = initialTables;
         }
         setTables(tbls);
@@ -126,7 +118,7 @@ export const DataProvider = ({ children }) => {
         setStockMovements(movs);
 
       } catch (error) {
-        console.error("Erro ao carregar dados do Firestore:", error);
+        console.error("Erro ao carregar dados do Supabase:", error);
       } finally {
         setLoading(false);
       }
@@ -138,26 +130,30 @@ export const DataProvider = ({ children }) => {
   // ===== CATEGORIAS =====
   const addCategory = useCallback(async (cat) => {
     const newCat = { ...cat, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    await setDoc(doc(db, 'categories', newCat.id), newCat);
+    const { error } = await supabase.from('categories').insert([newCat]);
+    if (error) throw error;
     setCategories(prev => [...prev, newCat]);
     return newCat;
   }, []);
 
   const updateCategory = useCallback(async (id, data) => {
     const updateData = { ...data, updatedAt: new Date().toISOString() };
-    await updateDoc(doc(db, 'categories', id), updateData);
+    const { error } = await supabase.from('categories').update(updateData).eq('id', id);
+    if (error) throw error;
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
   }, []);
 
   const deleteCategory = useCallback(async (id) => {
-    await deleteDoc(doc(db, 'categories', id));
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+    if (error) throw error;
     setCategories(prev => prev.filter(c => c.id !== id));
   }, []);
 
   // ===== PRODUTOS =====
   const addProduct = useCallback(async (prod) => {
     const newProd = { ...prod, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    await setDoc(doc(db, 'products', newProd.id), newProd);
+    const { error } = await supabase.from('products').insert([newProd]);
+    if (error) throw error;
     setProducts(prev => {
       const next = [...prev, newProd];
       productsRef.current = next;
@@ -168,7 +164,8 @@ export const DataProvider = ({ children }) => {
 
   const updateProduct = useCallback(async (id, data) => {
     const updateData = { ...data, updatedAt: new Date().toISOString() };
-    await updateDoc(doc(db, 'products', id), updateData);
+    const { error } = await supabase.from('products').update(updateData).eq('id', id);
+    if (error) throw error;
     setProducts(prev => {
       const next = prev.map(p => p.id === id ? { ...p, ...updateData } : p);
       productsRef.current = next;
@@ -177,7 +174,8 @@ export const DataProvider = ({ children }) => {
   }, []);
 
   const deleteProduct = useCallback(async (id) => {
-    await deleteDoc(doc(db, 'products', id));
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) throw error;
     setProducts(prev => {
       const next = prev.filter(p => p.id !== id);
       productsRef.current = next;
@@ -188,38 +186,44 @@ export const DataProvider = ({ children }) => {
   // ===== CLIENTES =====
   const addClient = useCallback(async (client) => {
     const newClient = { ...client, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    await setDoc(doc(db, 'clients', newClient.id), newClient);
+    const { error } = await supabase.from('clients').insert([newClient]);
+    if (error) throw error;
     setClients(prev => [...prev, newClient]);
     return newClient;
   }, []);
 
   const updateClient = useCallback(async (id, data) => {
     const updateData = { ...data, updatedAt: new Date().toISOString() };
-    await updateDoc(doc(db, 'clients', id), updateData);
+    const { error } = await supabase.from('clients').update(updateData).eq('id', id);
+    if (error) throw error;
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
   }, []);
 
   const deleteClient = useCallback(async (id) => {
-    await deleteDoc(doc(db, 'clients', id));
+    const { error } = await supabase.from('clients').delete().eq('id', id);
+    if (error) throw error;
     setClients(prev => prev.filter(c => c.id !== id));
   }, []);
 
   // ===== MESAS =====
   const updateTable = useCallback(async (id, data) => {
     const updateData = { ...data, updatedAt: new Date().toISOString() };
-    await updateDoc(doc(db, 'tables', id), updateData);
+    const { error } = await supabase.from('tables').update(updateData).eq('id', id);
+    if (error) throw error;
     setTables(prev => prev.map(t => t.id === id ? { ...t, ...updateData } : t));
   }, []);
 
   const addTable = useCallback(async (table) => {
     const newTable = { ...table, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    await setDoc(doc(db, 'tables', newTable.id), newTable);
+    const { error } = await supabase.from('tables').insert([newTable]);
+    if (error) throw error;
     setTables(prev => [...prev, newTable]);
     return newTable;
   }, []);
 
   const deleteTable = useCallback(async (id) => {
-    await deleteDoc(doc(db, 'tables', id));
+    const { error } = await supabase.from('tables').delete().eq('id', id);
+    if (error) throw error;
     setTables(prev => prev.filter(t => t.id !== id));
   }, []);
 
@@ -227,19 +231,21 @@ export const DataProvider = ({ children }) => {
     const newSale = { ...sale, id: generateId(), createdAt: new Date().toISOString() };
     
     // Registrar venda
-    await setDoc(doc(db, 'sales', newSale.id), newSale);
+    const { error: saleError } = await supabase.from('sales').insert([newSale]);
+    if (saleError) throw saleError;
     
     // Atualizar estoque usando ref (dados sempre atuais)
     const currentProducts = productsRef.current;
-    const updatedProducts = currentProducts.map(p => {
+    const updatedProducts = await Promise.all(currentProducts.map(async p => {
       const saleItem = sale.items.find(item => item.productId === p.id);
       if (saleItem) {
         const newStock = Math.max(0, p.estoque - saleItem.quantidade);
-        updateDoc(doc(db, 'products', p.id), { estoque: newStock, updatedAt: new Date().toISOString() });
+        const { error: prodError } = await supabase.from('products').update({ estoque: newStock, updatedAt: new Date().toISOString() }).eq('id', p.id);
+        if (prodError) throw prodError;
         return { ...p, estoque: newStock, updatedAt: new Date().toISOString() };
       }
       return p;
-    });
+    }));
 
     // Registrar no financeiro
     const financeEntry = {
@@ -251,7 +257,8 @@ export const DataProvider = ({ children }) => {
       data: new Date().toISOString(),
       createdAt: new Date().toISOString()
     };
-    await setDoc(doc(db, 'financeiro', financeEntry.id), financeEntry);
+    const { error: finError } = await supabase.from('financeiro').insert([financeEntry]);
+    if (finError) throw finError;
 
     productsRef.current = updatedProducts;
     setProducts(updatedProducts);
@@ -272,48 +279,54 @@ export const DataProvider = ({ children }) => {
       createdAt: new Date().toISOString(), 
       updatedAt: new Date().toISOString() 
     };
-    await setDoc(doc(db, 'comandas', newComanda.id), newComanda);
+    const { error } = await supabase.from('comandas').insert([newComanda]);
+    if (error) throw error;
     setComandas(prev => [...prev, newComanda]);
     return newComanda;
   }, [comandas.length]);
 
   const updateComanda = useCallback(async (id, data) => {
     const updateData = { ...data, updatedAt: new Date().toISOString() };
-    await updateDoc(doc(db, 'comandas', id), updateData);
+    const { error } = await supabase.from('comandas').update(updateData).eq('id', id);
+    if (error) throw error;
     setComandas(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
   }, []);
 
   // ===== FINANCEIRO =====
   const addFinanceiro = useCallback(async (entry) => {
     const newEntry = { ...entry, id: generateId(), createdAt: new Date().toISOString() };
-    await setDoc(doc(db, 'financeiro', newEntry.id), newEntry);
+    const { error } = await supabase.from('financeiro').insert([newEntry]);
+    if (error) throw error;
     setFinanceiro(prev => [...prev, newEntry]);
     return newEntry;
   }, []);
 
   const deleteFinanceiro = useCallback(async (id) => {
-    await deleteDoc(doc(db, 'financeiro', id));
+    const { error } = await supabase.from('financeiro').delete().eq('id', id);
+    if (error) throw error;
     setFinanceiro(prev => prev.filter(f => f.id !== id));
   }, []);
 
   // ===== MOVIMENTAÇÕES DE ESTOQUE =====
   const addStockMovement = useCallback(async (movement) => {
     const newMov = { ...movement, id: generateId(), createdAt: new Date().toISOString() };
-    await setDoc(doc(db, 'stockMovements', newMov.id), newMov);
+    const { error: movError } = await supabase.from('stockMovements').insert([newMov]);
+    if (movError) throw movError;
 
     // Atualizar estoque do produto usando ref (dados sempre atuais)
     const currentProducts = productsRef.current;
-    const updatedProducts = currentProducts.map(p => {
+    const updatedProducts = await Promise.all(currentProducts.map(async p => {
       if (p.id === movement.productId) {
         const newStock = movement.tipo === 'entrada'
           ? p.estoque + movement.quantidade
           : Math.max(0, p.estoque - movement.quantidade);
         
-        updateDoc(doc(db, 'products', p.id), { estoque: newStock, updatedAt: new Date().toISOString() });
+        const { error: prodError } = await supabase.from('products').update({ estoque: newStock, updatedAt: new Date().toISOString() }).eq('id', p.id);
+        if (prodError) throw prodError;
         return { ...p, estoque: newStock, updatedAt: new Date().toISOString() };
       }
       return p;
-    });
+    }));
 
     productsRef.current = updatedProducts;
     setProducts(updatedProducts);
