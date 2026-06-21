@@ -64,7 +64,7 @@ const Reports = () => {
       (s.items || []).forEach(item => {
         if (!salesStats[item.productId]) {
           const originalProd = products.find(p => p.id === item.productId);
-          salesStats[item.productId] = { nome: item.nome, quantidade: 0, faturamento: 0, precoCompra: originalProd ? originalProd.preco_compra : 0, precoVenda: item.preco };
+          salesStats[item.productId] = { nome: originalProd ? originalProd.nome : item.nome, quantidade: 0, faturamento: 0, precoCompra: originalProd ? originalProd.preco_compra : 0, precoVenda: item.preco };
         }
         salesStats[item.productId].quantidade += item.quantidade;
         salesStats[item.productId].faturamento += item.quantidade * item.preco;

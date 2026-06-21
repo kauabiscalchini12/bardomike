@@ -35,7 +35,9 @@ const Dashboard = () => {
     const productSalesCount = {};
     sales.forEach(s => {
       (s.items || []).forEach(item => {
-        productSalesCount[item.nome] = (productSalesCount[item.nome] || 0) + item.quantidade;
+        const prod = products.find(p => p.id === item.productId);
+        const name = prod ? prod.nome : item.nome;
+        productSalesCount[name] = (productSalesCount[name] || 0) + item.quantidade;
       });
     });
     const topProducts = Object.entries(productSalesCount)

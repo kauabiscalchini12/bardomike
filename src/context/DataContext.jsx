@@ -57,71 +57,123 @@ export const DataProvider = ({ children }) => {
   // Carregar todos os dados do Supabase no mount
   useEffect(() => {
     const loadAllData = async () => {
-      try {
-        const getCollectionData = async (colName) => {
-          const { data, error } = await supabase.from(colName).select('*');
-          if (error) throw error;
-          return data || [];
-        };
+      const getCollectionData = async (colName) => {
+        const { data, error } = await supabase.from(colName).select('*');
+        if (error) throw error;
+        return data || [];
+      };
 
-        // Carrega categorias
+      // Carrega categorias
+      try {
         let cats = await getCollectionData('categories');
         if (cats.length === 0) {
-          const { error: insertError } = await supabase.from('categories').insert(initialCategories);
-          if (insertError) throw insertError;
-          cats = initialCategories;
+          try {
+            const { error: insertError } = await supabase.from('categories').insert(initialCategories);
+            if (insertError) throw insertError;
+            cats = initialCategories;
+          } catch (insertErr) {
+            console.error("Erro ao inserir categorias iniciais:", insertErr);
+            cats = initialCategories;
+          }
         }
         setCategories(cats);
+      } catch (error) {
+        console.error("Erro ao carregar categorias do Supabase:", error);
+        setCategories(initialCategories);
+      }
 
-        // Carrega produtos
+      // Carrega produtos
+      try {
         let prods = await getCollectionData('products');
         if (prods.length === 0) {
-          const { error: insertError } = await supabase.from('products').insert(initialProducts);
-          if (insertError) throw insertError;
-          prods = initialProducts;
+          try {
+            const { error: insertError } = await supabase.from('products').insert(initialProducts);
+            if (insertError) throw insertError;
+            prods = initialProducts;
+          } catch (insertErr) {
+            console.error("Erro ao inserir produtos iniciais:", insertErr);
+            prods = initialProducts;
+          }
         }
         setProducts(prods);
         productsRef.current = prods;
+      } catch (error) {
+        console.error("Erro ao carregar produtos do Supabase:", error);
+        setProducts(initialProducts);
+        productsRef.current = initialProducts;
+      }
 
-        // Carrega clientes
+      // Carrega clientes
+      try {
         let clis = await getCollectionData('clients');
         if (clis.length === 0) {
-          const { error: insertError } = await supabase.from('clients').insert(initialClients);
-          if (insertError) throw insertError;
-          clis = initialClients;
+          try {
+            const { error: insertError } = await supabase.from('clients').insert(initialClients);
+            if (insertError) throw insertError;
+            clis = initialClients;
+          } catch (insertErr) {
+            console.error("Erro ao inserir clientes iniciais:", insertErr);
+            clis = initialClients;
+          }
         }
         setClients(clis);
+      } catch (error) {
+        console.error("Erro ao carregar clientes do Supabase:", error);
+        setClients(initialClients);
+      }
 
-        // Carrega mesas
+      // Carrega mesas
+      try {
         let tbls = await getCollectionData('tables');
         if (tbls.length === 0) {
-          const { error: insertError } = await supabase.from('tables').insert(initialTables);
-          if (insertError) throw insertError;
-          tbls = initialTables;
+          try {
+            const { error: insertError } = await supabase.from('tables').insert(initialTables);
+            if (insertError) throw insertError;
+            tbls = initialTables;
+          } catch (insertErr) {
+            console.error("Erro ao inserir mesas iniciais:", insertErr);
+            tbls = initialTables;
+          }
         }
         setTables(tbls);
+      } catch (error) {
+        console.error("Erro ao carregar mesas do Supabase:", error);
+        setTables(initialTables);
+      }
 
-        // Carrega vendas
+      // Carrega vendas
+      try {
         const sls = await getCollectionData('sales');
         setSales(sls);
+      } catch (error) {
+        console.error("Erro ao carregar vendas do Supabase:", error);
+      }
 
-        // Carrega comandas
+      // Carrega comandas
+      try {
         const cmds = await getCollectionData('comandas');
         setComandas(cmds);
+      } catch (error) {
+        console.error("Erro ao carregar comandas do Supabase:", error);
+      }
 
-        // Carrega financeiro
+      // Carrega financeiro
+      try {
         const fin = await getCollectionData('financeiro');
         setFinanceiro(fin);
+      } catch (error) {
+        console.error("Erro ao carregar financeiro do Supabase:", error);
+      }
 
-        // Carrega movimentações de estoque
+      // Carrega movimentações de estoque
+      try {
         const movs = await getCollectionData('stockMovements');
         setStockMovements(movs);
-
       } catch (error) {
-        console.error("Erro ao carregar dados do Supabase:", error);
-      } finally {
-        setLoading(false);
+        console.error("Erro ao carregar movimentações de estoque do Supabase:", error);
       }
+
+      setLoading(false);
     };
 
     loadAllData();
