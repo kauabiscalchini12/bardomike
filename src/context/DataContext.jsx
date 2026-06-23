@@ -344,6 +344,28 @@ export const DataProvider = ({ children }) => {
     setComandas(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
   }, []);
 
+  const deleteComanda = useCallback(async (id) => {
+    const assocComanda = comandas.find(c => c.id === id);
+    const { error } = await supabase.from('comandas').delete().eq('id', id);
+    if (error) throw error;
+
+    if (assocComanda && assocComanda.mesaId) {
+      try {
+        const { error: tableError } = await supabase
+          .from('tables')
+          .update({ status: 'Livre', cliente: '', comanda_id: null, updatedAt: new Date().toISOString() })
+          .eq('id', assocComanda.mesaId);
+        if (tableError) throw tableError;
+        setTables(prev => prev.map(t => t.id === assocComanda.mesaId ? { ...t, status: 'Livre', cliente: '', comanda_id: null, updatedAt: new Date().toISOString() } : t));
+      } catch (tableErr) {
+        console.error("Erro ao liberar mesa ao excluir comanda:", tableErr);
+      }
+    }
+
+    setComandas(prev => prev.filter(c => c.id !== id));
+  }, [comandas]);
+
+
   // ===== FINANCEIRO =====
   const addFinanceiro = useCallback(async (entry) => {
     const newEntry = { ...entry, id: generateId(), createdAt: new Date().toISOString() };
@@ -392,7 +414,7 @@ export const DataProvider = ({ children }) => {
     clients, addClient, updateClient, deleteClient,
     tables, updateTable, addTable, deleteTable,
     sales, addSale,
-    comandas, addComanda, updateComanda,
+    comandas, addComanda, updateComanda, deleteComanda,
     financeiro, addFinanceiro, deleteFinanceiro,
     stockMovements, addStockMovement,
   };

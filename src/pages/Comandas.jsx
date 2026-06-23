@@ -5,7 +5,7 @@ import '../styles/Pages.css';
 
 const Comandas = () => {
   const { 
-    comandas, addComanda, updateComanda, 
+    comandas, addComanda, updateComanda, deleteComanda,
     tables, updateTable, 
     products, clients, addSale 
   } = useData();
@@ -17,6 +17,26 @@ const Comandas = () => {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [comandaToDelete, setComandaToDelete] = useState(null);
+
+  const handleDeleteComandaClick = (comanda) => {
+    setComandaToDelete(comanda);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!comandaToDelete) return;
+    try {
+      await deleteComanda(comandaToDelete.id);
+      setSelectedComanda(null);
+      setShowDeleteModal(false);
+      setComandaToDelete(null);
+    } catch (error) {
+      console.error("Erro ao excluir comanda:", error);
+      alert("Erro ao excluir comanda. Tente novamente.");
+    }
+  };
 
   // Formulário de Nova Comanda
   const [newComandaForm, setNewComandaForm] = useState({
@@ -27,9 +47,7 @@ const Comandas = () => {
 
   // Formulário de Adicionar Item
   const [addItemSearch, setAddItemSearch] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [addItemQty, setAddItemQty] = useState(1);
-  const [addItemObservation, setAddItemObservation] = useState('');
+  const [modalCart, setModalCart] = useState([]);
 
   // Formulário de Fechamento de Conta
   const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
@@ -123,69 +141,112 @@ const Comandas = () => {
   // Abre Modal de Inclusão de Item
   const openAddItem = () => {
     setAddItemSearch('');
-    setSelectedProduct(null);
-    setAddItemQty(1);
-    setAddItemObservation('');
+    setModalCart([]);
     setShowAddItemModal(true);
   };
 
-  // Adiciona item na comanda atual
-  const handleAddItemToComanda = async (e) => {
-    e.preventDefault();
-    if (!selectedProduct || !selectedComanda) return;
-
-    if (selectedProduct.estoque !== undefined && selectedProduct.estoque < addItemQty) {
-      alert(`Quantidade desejada excede estoque disponível! Estoque atual: ${selectedProduct.estoque}`);
+  // Seleciona um produto para o carrinho do modal
+  const handleProductSelectForCart = (product) => {
+    if (product.estoque !== undefined && product.estoque <= 0) {
+      alert(`Produto sem estoque disponível!`);
       return;
     }
 
-    const currentItems = selectedComanda.items || [];
-    const existingIndex = currentItems.findIndex(item => 
-      item.productId === selectedProduct.id && 
-      (item.observacao || '').trim().toLowerCase() === addItemObservation.trim().toLowerCase()
-    );
-    
-    let updatedItems = [];
-    if (existingIndex > -1) {
-      const currentQty = currentItems[existingIndex].quantidade;
-      if (selectedProduct.estoque !== undefined && selectedProduct.estoque < currentQty + addItemQty) {
-        alert(`Limite de estoque excedido! Você já adicionou ${currentQty} un. e o estoque total é ${selectedProduct.estoque}`);
-        return;
-      }
-      updatedItems = currentItems.map((item, idx) => 
-        idx === existingIndex 
-          ? { ...item, quantidade: item.quantidade + addItemQty }
-          : item
-      );
-    } else {
-      updatedItems = [
-        ...currentItems,
-        {
-          productId: selectedProduct.id,
-          nome: selectedProduct.nome,
-          quantidade: addItemQty,
-          preco: selectedProduct.preco_venda,
-          observacao: addItemObservation.trim()
+    setModalCart(prev => {
+      const existing = prev.find(item => item.product.id === product.id);
+      if (existing) {
+        if (product.estoque !== undefined && existing.quantidade >= product.estoque) {
+          alert(`Quantidade excede estoque disponível!`);
+          return prev;
         }
-      ];
+        return prev.map(item => 
+          item.product.id === product.id 
+            ? { ...item, quantidade: item.quantidade + 1 }
+            : item
+        );
+      } else {
+        return [...prev, { product, quantidade: 1, observacao: '' }];
+      }
+    });
+  };
+
+  // Atualiza quantidade do item no carrinho do modal
+  const handleUpdateModalCartQty = (productId, newQty) => {
+    const item = modalCart.find(i => i.product.id === productId);
+    if (!item) return;
+
+    if (item.product.estoque !== undefined && newQty > item.product.estoque) {
+      alert(`Quantidade desejada excede estoque disponível! Estoque atual: ${item.product.estoque}`);
+      return;
+    }
+
+    if (newQty <= 0) {
+      setModalCart(prev => prev.filter(i => i.product.id !== productId));
+    } else {
+      setModalCart(prev => prev.map(i => 
+        i.product.id === productId 
+          ? { ...i, quantidade: newQty }
+          : i
+      ));
+    }
+  };
+
+  // Atualiza observação de um produto do carrinho
+  const handleUpdateModalCartObs = (productId, obs) => {
+    setModalCart(prev => prev.map(i => 
+      i.product.id === productId 
+        ? { ...i, observacao: obs }
+        : i
+    ));
+  };
+
+  // Adiciona itens do carrinho do modal na comanda atual
+  const handleAddItemToComanda = async (e) => {
+    e.preventDefault();
+    if (modalCart.length === 0 || !selectedComanda) return;
+
+    const currentItems = selectedComanda.items || [];
+    let updatedItems = [...currentItems];
+
+    for (const cartItem of modalCart) {
+      const { product, quantidade, observacao } = cartItem;
+      const existingIndex = updatedItems.findIndex(item => 
+        item.productId === product.id && 
+        (item.observacao || '').trim().toLowerCase() === observacao.trim().toLowerCase()
+      );
+
+      if (existingIndex > -1) {
+        const currentQty = updatedItems[existingIndex].quantidade;
+        if (product.estoque !== undefined && product.estoque < currentQty + quantidade) {
+          alert(`Limite de estoque excedido para o produto ${product.nome}! Você já adicionou ${currentQty} un. e o estoque total é ${product.estoque}`);
+          return;
+        }
+        updatedItems = updatedItems.map((item, idx) => 
+          idx === existingIndex 
+            ? { ...item, quantidade: item.quantidade + quantidade }
+            : item
+        );
+      } else {
+        updatedItems.push({
+          productId: product.id,
+          nome: product.nome,
+          quantidade: quantidade,
+          preco: product.preco_venda,
+          observacao: observacao.trim()
+        });
+      }
     }
 
     try {
       await updateComanda(selectedComanda.id, { items: updatedItems });
-      
-      // Atualizar a referência da comanda selecionada na UI local
       setSelectedComanda({
         ...selectedComanda,
         items: updatedItems
       });
+      setShowAddItemModal(false);
     } catch (error) {
-      console.error("Erro ao adicionar item à comanda:", error);
+      console.error("Erro ao adicionar itens à comanda:", error);
     }
-
-    setShowAddItemModal(false);
-    setSelectedProduct(null);
-    setAddItemQty(1);
-    setAddItemObservation('');
   };
 
   // Remover ou atualizar quantidade de item da comanda
@@ -403,9 +464,18 @@ const Comandas = () => {
                     {selectedComanda.mesaNumero ? `Mesa ${selectedComanda.mesaNumero}` : 'Atendimento Balcão'} - {selectedComanda.cliente}
                   </span>
                 </div>
-                <button className="btn-icon" onClick={() => setSelectedComanda(null)}>
-                  <X size={18} />
-                </button>
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  <button 
+                    className="btn-icon danger" 
+                    title="Excluir Comanda"
+                    onClick={() => handleDeleteComandaClick(selectedComanda)}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                  <button className="btn-icon" onClick={() => setSelectedComanda(null)}>
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               {/* Lista de Consumo */}
@@ -570,104 +640,158 @@ const Comandas = () => {
       {/* Modal Adicionar Item */}
       {showAddItemModal && selectedComanda && (
         <div className="modal-overlay" onClick={() => setShowAddItemModal(false)}>
-          <div className="modal-content modal-md" onClick={e => e.stopPropagation()}>
+          <div className={`modal-content ${modalCart.length > 0 ? 'modal-lg' : 'modal-md'}`} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Adicionar Consumo (Comanda #{selectedComanda.numero})</h2>
               <button className="btn-icon" onClick={() => setShowAddItemModal(false)}><X size={20} /></button>
             </div>
             <form onSubmit={handleAddItemToComanda}>
               <div className="modal-body">
-                <div className="search-bar" style={{ marginBottom: '1rem' }}>
-                  <div className="search-input-wrapper">
-                    <Search size={18} className="search-icon" />
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Pesquisar produto pelo nome..."
-                      value={addItemSearch}
-                      onChange={e => setAddItemSearch(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <label className="form-label">Selecionar Produto *</label>
-                <div className="items-selector-grid" style={{ marginBottom: '1rem' }}>
-                  {filteredProducts.map(p => {
-                    const isSelected = selectedProduct?.id === p.id;
-                    return (
-                      <div
-                        key={p.id}
-                        className="item-selector-card"
-                        style={{
-                          borderColor: isSelected ? 'var(--primary-color)' : 'var(--border-color)',
-                          backgroundColor: isSelected ? 'var(--primary-color-light)' : 'var(--surface-color)'
-                        }}
-                        onClick={() => setSelectedProduct(p)}
-                      >
-                        <span className="item-selector-name" title={p.nome}>{p.nome}</span>
-                        <span className="item-selector-price">{formatCurrency(p.preco_venda)}</span>
-                        <span style={{ fontSize: '0.65rem', display: 'block', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                          Estoque: {p.estoque}
-                        </span>
+                <div style={{ display: 'grid', gridTemplateColumns: modalCart.length > 0 ? '1.2fr 1fr' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
+                  
+                  {/* Left Column: Product Selection */}
+                  <div>
+                    <div className="search-bar" style={{ marginBottom: '1rem' }}>
+                      <div className="search-input-wrapper">
+                        <Search size={18} className="search-icon" />
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Pesquisar produto pelo nome..."
+                          value={addItemSearch}
+                          onChange={e => setAddItemSearch(e.target.value)}
+                        />
                       </div>
-                    );
-                  })}
-                  {filteredProducts.length === 0 && (
-                    <div style={{ gridColumn: '1 / -1', textAlignment: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>
-                      Nenhum produto ativo encontrado.
+                    </div>
+
+                    <label className="form-label">Selecionar Produtos (Clique para adicionar)</label>
+                    <div className="items-selector-grid" style={{ marginBottom: '1rem', maxHeight: '350px' }}>
+                      {filteredProducts.map(p => {
+                        const itemInCart = modalCart.find(i => i.product.id === p.id);
+                        const cartQty = itemInCart ? itemInCart.quantidade : 0;
+                        return (
+                          <div
+                            key={p.id}
+                            className="item-selector-card"
+                            style={{
+                              borderColor: cartQty > 0 ? 'var(--primary-color)' : 'var(--border-color)',
+                              backgroundColor: cartQty > 0 ? 'var(--primary-color-light)' : 'var(--surface-color)',
+                              position: 'relative'
+                            }}
+                            onClick={() => handleProductSelectForCart(p)}
+                          >
+                            {cartQty > 0 && (
+                              <span style={{
+                                position: 'absolute',
+                                top: '-6px',
+                                right: '-6px',
+                                backgroundColor: 'var(--primary-color)',
+                                color: 'white',
+                                fontSize: '0.7rem',
+                                fontWeight: 'bold',
+                                borderRadius: '50%',
+                                width: '18px',
+                                height: '18px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: 'var(--shadow-sm)'
+                              }}>
+                                {cartQty}
+                              </span>
+                            )}
+                            <span className="item-selector-name" title={p.nome}>{p.nome}</span>
+                            <span className="item-selector-price">{formatCurrency(p.preco_venda)}</span>
+                            <span style={{ fontSize: '0.65rem', display: 'block', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                              Estoque: {p.estoque}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {filteredProducts.length === 0 && (
+                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>
+                          Nenhum produto ativo encontrado.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Selected Items Detail */}
+                  {modalCart.length > 0 && (
+                    <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '420px', overflowY: 'auto' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
+                        Itens Selecionados ({modalCart.reduce((sum, item) => sum + item.quantidade, 0)})
+                      </h3>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {modalCart.map((item) => (
+                          <div key={item.product.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem', backgroundColor: 'var(--bg-color)', borderRadius: 'var(--radius-md)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1, marginRight: '0.5rem' }}>
+                                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{item.product.nome}</span>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+                                  {formatCurrency(item.product.preco_venda)} cada
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn-icon danger"
+                                style={{ width: '20px', height: '20px', padding: 0 }}
+                                title="Remover"
+                                onClick={() => handleUpdateModalCartQty(item.product.id, 0)}
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Qtd:</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '90px' }}>
+                                <button
+                                  type="button"
+                                  className="qty-btn"
+                                  style={{ width: '20px', height: '20px' }}
+                                  onClick={() => handleUpdateModalCartQty(item.product.id, item.quantidade - 1)}
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <span style={{ flex: 1, textAlign: 'center', fontSize: '0.85rem', fontWeight: 600 }}>{item.quantidade}</span>
+                                <button
+                                  type="button"
+                                  className="qty-btn"
+                                  style={{ width: '20px', height: '20px' }}
+                                  onClick={() => handleUpdateModalCartQty(item.product.id, item.quantidade + 1)}
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.25rem' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Obs (opcional):</span>
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                placeholder="Ex: sem cebola, com gelo"
+                                value={item.observacao}
+                                onChange={(e) => handleUpdateModalCartObs(item.product.id, e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
+
                 </div>
-
-                {selectedProduct && (
-                  <>
-                    <div className="form-group" style={{ marginTop: '1rem' }}>
-                      <label className="form-label">Quantidade</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '120px' }}>
-                        <button
-                          type="button"
-                          className="qty-btn"
-                          onClick={() => setAddItemQty(prev => Math.max(1, prev - 1))}
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <input
-                          type="number"
-                          className="form-input"
-                          style={{ padding: '0.35rem', textAlign: 'center', flex: 1 }}
-                          value={addItemQty}
-                          onChange={e => setAddItemQty(Math.max(1, parseInt(e.target.value) || 1))}
-                        />
-                        <button
-                          type="button"
-                          className="qty-btn"
-                          onClick={() => setAddItemQty(prev => prev + 1)}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="form-group" style={{ marginTop: '1rem' }}>
-                      <label className="form-label">Observações (Opcional)</label>
-                      <textarea
-                        className="form-input"
-                        rows="2"
-                        placeholder="Ex: Sem gelo e limão, bem passado, etc."
-                        value={addItemObservation}
-                        onChange={e => setAddItemObservation(e.target.value)}
-                        style={{ resize: 'vertical', minHeight: '60px' }}
-                      />
-                    </div>
-                  </>
-                )}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline" onClick={() => setShowAddItemModal(false)}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={!selectedProduct}>
-                  Adicionar à Comanda
+                <button type="submit" className="btn btn-primary" disabled={modalCart.length === 0}>
+                  Adicionar {modalCart.length > 0 ? `(${modalCart.reduce((sum, item) => sum + item.quantidade, 0)} itens)` : ''}
                 </button>
               </div>
             </form>
@@ -796,6 +920,52 @@ const Comandas = () => {
               <button className="btn btn-primary btn-block" onClick={() => setShowSuccessModal(false)}>
                 Confirmar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      {showDeleteModal && comandaToDelete && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="modal-content modal-sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-body" style={{ textAlign: 'center', padding: '2rem' }}>
+              <div
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '50%',
+                  backgroundColor: '#fee2e2',
+                  color: '#ef4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 1rem'
+                }}
+              >
+                <Trash2 size={32} />
+              </div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', color: '#1e293b' }}>
+                Excluir Comanda?
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1.5rem', lineHeight: '1.4' }}>
+                Tem certeza de que deseja excluir a <strong>Comanda #{comandaToDelete.numero}</strong> ({comandaToDelete.cliente})? 
+                Esta ação é permanente e todos os itens de consumo serão perdidos.
+                {comandaToDelete.mesaId && (
+                  <span style={{ display: 'block', marginTop: '0.5rem', color: '#b45309', fontWeight: 500 }}>
+                    ⚠️ A Mesa {comandaToDelete.mesaNumero} será liberada automaticamente.
+                  </span>
+                )}
+              </p>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowDeleteModal(false)}>
+                  Cancelar
+                </button>
+                <button className="btn btn-danger" style={{ flex: 1 }} onClick={handleConfirmDelete}>
+                  Excluir
+                </button>
+              </div>
             </div>
           </div>
         </div>
