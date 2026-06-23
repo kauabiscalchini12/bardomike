@@ -1,8 +1,36 @@
 // Script para listar e remover transações de teste criadas hoje
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://ahwcyxnwgpfbirqdpylb.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFod2N5eG53Z3BmYmlycWRweWxiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2Mjg1NDUsImV4cCI6MjA5NzIwNDU0NX0.ENMqK40q6AHyUbxbylWtVmlDzs8UlIsORk';
+import fs from 'fs';
+import path from 'path';
+
+// Ler as credenciais do .env.local
+let supabaseUrl = '';
+let supabaseAnonKey = '';
+
+try {
+  const envPath = path.resolve('.env.local');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    const lines = envContent.split('\n');
+    for (const line of lines) {
+      const parts = line.split('=');
+      if (parts[0] === 'VITE_SUPABASE_URL') {
+        supabaseUrl = parts.slice(1).join('=').trim();
+      }
+      if (parts[0] === 'VITE_SUPABASE_ANON_KEY') {
+        supabaseAnonKey = parts.slice(1).join('=').trim();
+      }
+    }
+  }
+} catch (error) {
+  console.error('Erro ao ler arquivo .env.local:', error);
+}
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Erro: Não foi possível carregar as credenciais do Supabase do arquivo .env.local');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
