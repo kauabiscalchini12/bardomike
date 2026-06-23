@@ -322,10 +322,21 @@ export const DataProvider = ({ children }) => {
 
   // ===== COMANDAS =====
   const addComanda = useCallback(async (comanda) => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const todayComandas = comandas.filter(c => {
+      if (!c.createdAt) return false;
+      const createdAtDate = new Date(c.createdAt);
+      return createdAtDate >= startOfToday;
+    });
+
+    const nextNumero = todayComandas.reduce((max, c) => Math.max(max, c.numero || 0), 0) + 1;
+
     const newComanda = { 
       ...comanda, 
       id: generateId(), 
-      numero: comandas.length + 1, 
+      numero: nextNumero, 
       status: 'Aberta', 
       items: [], 
       createdAt: new Date().toISOString(), 
@@ -335,7 +346,7 @@ export const DataProvider = ({ children }) => {
     if (error) throw error;
     setComandas(prev => [...prev, newComanda]);
     return newComanda;
-  }, [comandas.length]);
+  }, [comandas]);
 
   const updateComanda = useCallback(async (id, data) => {
     const updateData = { ...data, updatedAt: new Date().toISOString() };
